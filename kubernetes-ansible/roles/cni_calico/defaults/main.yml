@@ -1,0 +1,7 @@
+---
+calico_version: "v3.27"
+calico_mtu: 1450
+calico_backend: "vxlan"
+calico_pool_blocksize: 26
+calico_ipip_enabled: false
+felix_vxlan_enabled: true

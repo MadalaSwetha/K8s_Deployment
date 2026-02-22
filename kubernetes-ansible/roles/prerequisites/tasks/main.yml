@@ -1,0 +1,195 @@
+---
+- name: Update package manager cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  changed_when: false
+  when: ansible_os_family == "Debian"
+
+- name: Update YUM cache
+  yum:
+    name: "*"
+    state: latest
+  changed_when: false
+  when: ansible_os_family == "RedHat"
+
+- name: Install required packages (Debian)
+  apt:
+    name:
+      - curl
+      - git
+      - wget
+      - rsync
+      - jq
+      - net-tools
+      - ntp
+      - htop
+      - vim
+      - telnet
+    state: present
+  when: ansible_os_family == "Debian"
+
+- name: Install required packages (RedHat)
+  yum:
+    name:
+      - curl
+      - git
+      - wget
+      - rsync
+      - jq
+      - net-tools
+      - ntp
+      - htop
+      - vim
+      - telnet
+    state: present
+  when: ansible_os_family == "RedHat"
+
+- name: Disable swap
+  shell: |
+    swapoff -a
+  changed_when: false
+  when: not enable_swap | bool
+
+- name: Remove swap from fstab
+  lineinfile:
+    path: /etc/fstab
+    regexp: '^[^#]*\s+swap\s+'
+    state: absent
+  when: not enable_swap | bool
+
+- name: Configure kernel parameters for networking
+  sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    sysctl_set: yes
+    state: present
+    reload: yes
+  loop:
+    - name: net.ipv4.ip_forward
+      value: "1"
+    - name: net.bridge.bridge-nf-call-iptables
+      value: "1"
+    - name: net.bridge.bridge-nf-call-ip6tables
+      value: "1"
+    - name: net.ipv4.ip_nonlocal_bind
+      value: "1"
+  when: ip_forward_enabled | bool
+
+- name: Load br_netfilter kernel module
+  modprobe:
+    name: br_netfilter
+    state: present
+  when: net_bridge_enabled | bool
+
+- name: Load overlay kernel module
+  modprobe:
+    name: overlay
+    state: present
+
+- name: Persist kernel modules
+  template:
+    src: kubernetes-modules.conf.j2
+    dest: /etc/modules-load.d/kubernetes.conf
+  notify: restart modules
+
+- name: Set up NTP
+  service:
+    name: ntp
+    state: started
+    enabled: yes
+  when: ntp_enabled | bool and ansible_os_family == "Debian"
+
+- name: Set up chrony (RedHat NTP client)
+  service:
+    name: chronyd
+    state: started
+    enabled: yes
+  when: ntp_enabled | bool and ansible_os_family == "RedHat"
+
+- name: Configure system resource limits
+  template:
+    src: limits.conf.j2
+    dest: /etc/security/limits.d/90-kubernetes.conf
+  notify: reload limits
+
+- name: Configure system locale
+  lineinfile:
+    path: /etc/environment
+    state: present
+    regexp: "^LANG="
+    line: "LANG=en_US.UTF-8"
+
+- name: Ensure /etc/kubernetes directory exists
+  file:
+    path: /etc/kubernetes
+    state: directory
+    mode: "0755"
+
+- name: Ensure /var/lib/kubelet directory exists
+  file:
+    path: /var/lib/kubelet
+    state: directory
+    mode: "0755"
+
+- name: Configure firewall (ufw for Debian)
+  block:
+    - name: Enable UFW
+      ufw:
+        state: enabled
+      when: enable_firewall | bool
+
+    - name: Allow Kubernetes API port
+      ufw:
+        rule: allow
+        port: "6443"
+        proto: tcp
+        comment: "Kubernetes API"
+
+    - name: Allow kubelet port
+      ufw:
+        rule: allow
+        port: "10250"
+        proto: tcp
+        comment: "Kubelet API"
+
+    - name: Allow pod network ports
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+        comment: "Pod network"
+      loop:
+        - "30000:32767"
+  when: ansible_os_family == "Debian" and firewall_rules_enabled | bool
+
+- name: Configure firewall (firewalld for RedHat)
+  block:
+    - name: Enable firewalld
+      service:
+        name: firewalld
+        state: started
+        enabled: yes
+      when: enable_firewall | bool
+
+    - name: Allow Kubernetes API port
+      firewalld:
+        port: 6443/tcp
+        permanent: yes
+        state: enabled
+        immediate: yes
+
+    - name: Allow kubelet port
+      firewalld:
+        port: 10250/tcp
+        permanent: yes
+        state: enabled
+        immediate: yes
+
+    - name: Allow pod network ports
+      firewalld:
+        port: 30000-32767/tcp
+        permanent: yes
+        state: enabled
+        immediate: yes
+  when: ansible_os_family == "RedHat" and firewall_rules_enabled | bool

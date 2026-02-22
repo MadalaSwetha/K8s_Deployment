@@ -1,0 +1,84 @@
+---
+# Main orchestration playbook for Kubernetes cluster deployment
+# Execute with: ansible-playbook playbooks/site.yml -i inventory/production/hosts.ini
+
+- name: "Setup common prerequisites on all nodes"
+  hosts: k8s_all
+  gather_facts: yes
+  roles:
+    - prerequisites
+    - container_runtime
+
+- name: "Install Kubernetes core tools on all nodes"
+  hosts: k8s_all
+  gather_facts: no
+  roles:
+    - kubernetes_repo
+    - kubeadm_prepare
+
+- name: "Initialize Kubernetes control plane"
+  hosts: k8s_masters
+  serial: 1
+  gather_facts: no
+  roles:
+    - kube_master
+
+- name: "Deploy Container Network Interface"
+  hosts: k8s_masters[0]
+  gather_facts: no
+  tasks:
+    - name: "Deploy Calico CNI"
+      include_role:
+        name: cni_calico
+      when: cni_plugin == "calico"
+
+    - name: "Deploy Flannel CNI"
+      include_role:
+        name: cni_flannel
+      when: cni_plugin == "flannel"
+
+- name: "Join worker nodes to cluster"
+  hosts: k8s_workers
+  gather_facts: no
+  roles:
+    - kube_worker
+
+- name: "Deploy cluster add-ons"
+  hosts: k8s_masters[0]
+  gather_facts: no
+  tasks:
+    - name: "Deploy Nginx Ingress Controller"
+      include_role:
+        name: ingress_nginx
+
+    - name: "Deploy Metrics Server"
+      include_role:
+        name: metrics_server
+
+    - name: "Setup Storage Provisioner"
+      include_role:
+        name: storage_provisioner
+
+- name: "Final verification"
+  hosts: k8s_masters[0]
+  gather_facts: no
+  tasks:
+    - name: "Wait for all nodes to be ready"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf wait --for=condition=Ready nodes --all --timeout=300s
+      changed_when: false
+
+    - name: "Display cluster info"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf cluster-info
+      changed_when: false
+
+    - name: "Display node status"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf get nodes -o wide
+      changed_when: false
+
+    - name: "Display pod status"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf get pods -A
+      changed_when: false

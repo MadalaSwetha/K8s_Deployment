@@ -1,0 +1,17 @@
+{
+  "debug": false,
+  "log-driver": "{{ log_driver }}",
+  "log-opts": {
+    "max-size": "{{ log_max_size }}",
+    "max-file": "{{ log_max_file }}"
+  },
+  "registry-mirrors": [
+    "https://{{ registry_url }}"
+  ],
+  "storage-driver": "overlay2",
+  "live-restore": true,
+  "max-concurrent-downloads": 10,
+  "icc": false,
+  "userland-proxy": true,
+  "metrics-addr": "127.0.0.1:9323"
+}

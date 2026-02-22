@@ -1,0 +1,28 @@
+apiVersion: operator.tigera.io/v1
+kind: Installation
+metadata:
+  name: default
+spec:
+  kubernetesProvider: "auto"
+  variant: Calico
+  calicoNetwork:
+    ipPools:
+      - blockSize: {{ calico_pool_blocksize }}
+        cidr: {{ pod_network_cidr }}
+        encapsulation: {{ calico_backend | upper }}
+        natOutgoing: Enabled
+        nodeSelector: all()
+    linuxDataplane: Iptables
+    hostPorts: Enabled
+    mtu: {{ calico_mtu }}
+    nodeAddressDetectionV4:
+      firstFound: true
+    serviceExternalIPs:
+      - cidrList:
+        - 0.0.0.0/0
+---
+apiVersion: operator.tigera.io/v1
+kind: APIServer
+metadata:
+  name: default
+spec: {}

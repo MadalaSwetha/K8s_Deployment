@@ -1,0 +1,25 @@
+---
+- name: Create kube-system namespace (ensure it exists)
+  shell: |
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf get namespace kube-system || kubectl --kubeconfig=/etc/kubernetes/admin.conf create namespace kube-system
+  changed_when: false
+
+- name: Generate Metrics Server manifest
+  template:
+    src: metrics-server.yaml.j2
+    dest: /tmp/metrics-server.yaml
+    mode: "0644"
+
+- name: Apply Metrics Server manifest
+  shell: |
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf apply -f /tmp/metrics-server.yaml
+  changed_when: false
+
+- name: Wait for Metrics Server to be ready
+  shell: |
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf get deployment -n kube-system metrics-server -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0"
+  register: metrics_server_ready
+  retries: 30
+  delay: 10
+  until: metrics_server_ready.stdout | int >= 1
+  changed_when: false

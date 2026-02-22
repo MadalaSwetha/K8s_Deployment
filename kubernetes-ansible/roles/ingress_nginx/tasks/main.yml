@@ -1,0 +1,25 @@
+---
+- name: Create ingress-nginx namespace
+  shell: |
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf create namespace ingress-nginx --dry-run=client -o yaml | kubectl --kubeconfig=/etc/kubernetes/admin.conf apply -f -
+  changed_when: false
+
+- name: Generate Nginx Ingress manifest
+  template:
+    src: nginx-ingress.yaml.j2
+    dest: /tmp/nginx-ingress.yaml
+    mode: "0644"
+
+- name: Apply Nginx Ingress manifest
+  shell: |
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf apply -f /tmp/nginx-ingress.yaml
+  changed_when: false
+
+- name: Wait for Nginx Ingress controller to be ready
+  shell: |
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf get deployment -n ingress-nginx ingress-nginx-controller -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0"
+  register: ingress_ready_replicas
+  retries: 30
+  delay: 10
+  until: ingress_ready_replicas.stdout | int >= 1
+  changed_when: false

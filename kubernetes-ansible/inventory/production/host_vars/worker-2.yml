@@ -1,0 +1,14 @@
+---
+# Host-specific variables for worker-2
+
+ansible_host: "10.0.2.11"
+ansible_user: "ubuntu"
+
+# Node-specific labels
+node_labels: "node-role.kubernetes.io/worker=,workload=general-purpose"
+
+# Node-specific taints
+node_taints: []
+
+# Worker-specific settings
+kubelet_max_pods: 110

@@ -1,0 +1,16 @@
+---
+# Staging k8s_all group_vars
+
+kubelet_authentication_webhook: true
+kubelet_authorization_mode: "Webhook"
+kubelet_read_only_port: "10255"
+kubelet_event_record_qps: 5
+
+{% if container_runtime == 'docker' %}
+container_runtime_endpoint: "unix:///var/run/docker.sock"
+{% elif container_runtime == 'containerd' %}
+container_runtime_endpoint: "unix:///run/containerd/containerd.sock"
+{% endif %}
+
+kubernetes_dns_domain: "cluster.local"
+resolv_conf_path: "/etc/resolv.conf"

@@ -1,0 +1,8 @@
+---
+- name: restart modules
+  command: systemctl restart systemd-modules-load
+  changed_when: false
+
+- name: reload limits
+  command: sysctl -p /etc/security/limits.d/90-kubernetes.conf
+  changed_when: false

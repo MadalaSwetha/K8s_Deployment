@@ -1,0 +1,66 @@
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: InitConfiguration
+nodeRegistration:
+  name: {{ inventory_hostname }}
+  taints:
+    - key: node-role.kubernetes.io/master
+      value: ""
+      effect: NoSchedule
+    - key: node-role.kubernetes.io/control-plane
+      value: ""
+      effect: NoSchedule
+  kubeletExtraArgs:
+    node-labels: "node-role.kubernetes.io/master=,node-role.kubernetes.io/control-plane="
+{% if container_runtime == 'containerd' %}
+  criSocket: unix:///run/containerd/containerd.sock
+{% elif container_runtime == 'docker' %}
+  criSocket: unix:///var/run/docker.sock
+{% endif %}
+---
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: ClusterConfiguration
+clusterName: {{ cluster_name }}
+kubernetesVersion: {{ kubernetes_version }}
+controlPlaneEndpoint: {{ control_plane_endpoint }}
+networking:
+  podSubnet: {{ pod_network_cidr }}
+  serviceSubnet: {{ service_cidr }}
+  dnsDomain: cluster.local
+etcd:
+  local:
+    dataDir: /var/lib/etcd
+    extraArgs:
+      quota-backend-bytes: "{{ etcd_quota_bytes }}"
+apiServer:
+  timeoutForControlPlane: 4m0s
+  extraArgs:
+{% if audit_enabled %}
+    audit-policy-file: /etc/kubernetes/audit/audit-policy.yaml
+    audit-log-path: /var/log/kubernetes/audit/audit.log
+    audit-log-maxage: "30"
+    audit-log-maxbackup: "10"
+    audit-log-maxsize: "100"
+{% endif %}
+    feature-gates: "RotateKubeletServerCertificate=true"
+{% if apiserver_extra_args %}
+    {{ apiserver_extra_args | replace(',', '\n    ') }}
+{% endif %}
+  certSANs:
+    - "{{ control_plane_endpoint.split(':')[0] }}"
+{% for san in api_server_cert_extra_sans %}
+    - "{{ san }}"
+{% endfor %}
+controllerManager:
+  extraArgs:
+    cluster-signing-duration: 876000h
+dns:
+  type: CoreDNS
+scheduler: {}
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: {{ 'cgroupfs' if container_runtime == 'docker' else 'systemd' }}
+readOnlyPort: 10255
+eventRecordQPS: 5
+serverTLSBootstrap: true
+maxPods: 110

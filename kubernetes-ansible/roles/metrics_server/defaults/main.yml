@@ -1,0 +1,4 @@
+---
+metrics_server_version: "0.6"
+metrics_server_image: "registry.k8s.io/metrics-server/metrics-server"
+kubelet_insecure_tls: true

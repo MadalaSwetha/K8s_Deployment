@@ -1,0 +1,64 @@
+---
+# Staging environment group_vars/all.yml - Same structure as production but different values
+
+kubernetes_version: "1.28.0"
+kubeadm_version: "1.28.0"
+kubectl_version: "1.28.0"
+kubelet_version: "1.28.0"
+
+container_runtime: "docker"
+docker_version: "24.0.*"
+containerd_version: "1.7.*"
+
+registry_url: "docker.io"
+registry_credentials_enabled: false
+
+pod_network_cidr: "10.244.0.0/16"
+service_cidr: "10.96.0.0/12"
+dns_ip: "10.96.0.10"
+
+cni_plugin: "calico"
+
+calico_version: "v3.27"
+flannel_version: "v0.24"
+nginx_ingress_version: "4.9"
+metrics_server_version: "0.6"
+storage_provisioner_version: "1.0"
+
+cloud_provider: "aws"
+region: "us-east-1"
+
+enable_swap: false
+net_bridge_enabled: true
+ip_forward_enabled: true
+ip_nonlocal_bind_enabled: true
+
+enable_firewall: true
+
+api_server_feature_gates: "RotateKubeletServerCertificate=true,PodPriority=true"
+
+kubelet_max_pods: 110
+kubelet_system_reserved: "cpu=100m,memory=128Mi,ephemeral-storage=1Gi"
+kubelet_kube_reserved: "cpu=100m,memory=128Mi,ephemeral-storage=1Gi"
+
+audit_enabled: true
+audit_max_age_days: 30
+audit_max_backup: 10
+audit_max_size_mb: 100
+
+log_level: "info"
+log_driver: "json-file"
+log_max_size: "100m"
+log_max_file: "3"
+
+ntp_enabled: true
+ntp_servers:
+  - "time.google.com"
+  - "time.cloudflare.com"
+
+http_proxy: ""
+https_proxy: ""
+no_proxy: "localhost,127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+
+gather_facts: true
+gather_subset: "!all,network,hardware"

@@ -1,0 +1,45 @@
+---
+# Kubernetes Master/Control Plane specific variables
+
+cluster_name: "production-k8s"
+control_plane_endpoint: "172.31.93.87:6443"
+
+# etcd Configuration
+etcd_quota_bytes: 2147483648 # 2GB for production
+etcd_data_dir: "/var/lib/etcd"
+
+# API Server Configuration
+api_server_advertise_address: "{{ ansible_default_ipv4.address }}"
+apiserver_count: 1
+
+# API Server Extra Arguments
+apiserver_extra_args: "--audit-policy-file=/etc/kubernetes/audit/audit-policy.yaml --audit-log-path=/var/log/kubernetes/audit/audit.log"
+
+# Extra Subject Alternative Names for API Server Certificate
+api_server_cert_extra_sans:
+  - "172.31.93.87"
+  - "localhost"
+  - "127.0.0.1"
+
+# Controller Manager
+controller_manager_extra_args: "--cluster-signing-duration=876000h"
+
+# Kubelet Extra Arguments for Masters
+kubelet_extra_args: "--max-pods=110"
+
+# Master Node Labels
+node_labels: "node-role.kubernetes.io/master=,node-role.kubernetes.io/control-plane="
+
+# Master Node Taints
+node_taints:
+  - "node-role.kubernetes.io/master=:NoSchedule"
+  - "node-role.kubernetes.io/control-plane=:NoSchedule"
+
+# Token TTL for kubeadm join
+token_ttl: "24h"
+
+# Enable pod security policy (deprecated in 1.25+, use Pod Security Standards)
+pod_security_policy_enabled: false
+
+# Enable RBAC
+rbac_enabled: true

@@ -1,0 +1,12 @@
+---
+cluster_name: "kubernetes"
+control_plane_endpoint: "kubernetes.local:6443"
+pod_network_cidr: "10.244.0.0/16"
+service_cidr: "10.96.0.0/12"
+kubernetes_version: "1.28.0"
+api_server_cert_extra_sans: []
+apiserver_extra_args: ""
+kubelet_extra_args: "--max-pods=110"
+token_ttl: "24h"
+etcd_quota_bytes: 2147483648
+audit_enabled: true

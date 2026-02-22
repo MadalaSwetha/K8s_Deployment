@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kube-flannel-cfg
+  namespace: kube-flannel
+data:
+  cni-conf.json: |
+    {
+      "name": "cbr0",
+      "cniVersion": "1.0.0",
+      "type": "flannel",
+      "delegate": {
+        "hairpinMode": true,
+        "isDefaultGateway": true
+      }
+    }
+  net-conf.json: |
+    {
+      "Network": "{{ pod_network_cidr }}",
+      "Backend": {
+        "Type": "{{ flannel_backend }}"
+      },
+      "UpstreamBridge": "docker0",
+      "PreferDirectRoute": false,
+      "DirectEgressNAT": false,
+      "ResyncInterval": 600,
+      "VNI": 1
+    }

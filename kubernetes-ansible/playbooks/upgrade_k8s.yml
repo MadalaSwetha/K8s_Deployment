@@ -1,0 +1,196 @@
+---
+# Playbook to upgrade Kubernetes cluster
+# Execute with: ansible-playbook playbooks/upgrade_k8s.yml -i inventory/production/hosts.ini --extra-vars "target_k8s_version=1.29.0"
+
+- name: "Backup cluster before upgrade"
+  hosts: k8s_masters[0]
+  gather_facts: no
+  tasks:
+    - name: "Run etcd backup"
+      include_role:
+        name: backup_etcd
+
+- name: "Upgrade control plane"
+  hosts: k8s_masters
+  serial: 1
+  gather_facts: no
+  tasks:
+    - name: "Drain master node"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf drain {{ inventory_hostname }} \
+          --ignore-daemonsets \
+          --delete-emptydir-data \
+          --grace-period=300 || true
+      delegate_to: "{{ groups['k8s_masters'][0] }}"
+      when: inventory_hostname != groups['k8s_masters'][0]
+      changed_when: false
+
+    - name: "Upgrade kubeadm on master"
+      apt:
+        name: "kubeadm={{ target_k8s_version }}*"
+        state: present
+      when: ansible_os_family == "Debian"
+      become: yes
+
+    - name: "Upgrade kubeadm on master (RedHat)"
+      yum:
+        name: "kubeadm-{{ target_k8s_version }}*"
+        state: present
+      when: ansible_os_family == "RedHat"
+      become: yes
+
+    - name: "Run kubeadm upgrade plan (first master only)"
+      shell: |
+        kubeadm upgrade plan v{{ target_k8s_version }}
+      when: inventory_hostname == groups['k8s_masters'][0]
+      changed_when: false
+      become: yes
+
+    - name: "Run kubeadm upgrade apply"
+      shell: |
+        kubeadm upgrade apply v{{ target_k8s_version }} --yes
+      when: inventory_hostname == groups['k8s_masters'][0]
+      become: yes
+
+    - name: "Run kubeadm upgrade node (other masters)"
+      shell: |
+        kubeadm upgrade node
+      when: inventory_hostname != groups['k8s_masters'][0]
+      become: yes
+
+    - name: "Upgrade kubelet and kubectl"
+      apt:
+        name: "{{ item }}={{ target_k8s_version }}*"
+        state: present
+      loop:
+        - kubelet
+        - kubectl
+      when: ansible_os_family == "Debian"
+      become: yes
+
+    - name: "Upgrade kubelet and kubectl (RedHat)"
+      yum:
+        name: "{{ item }}-{{ target_k8s_version }}*"
+        state: present
+      loop:
+        - kubelet
+        - kubectl
+      when: ansible_os_family == "RedHat"
+      become: yes
+
+    - name: "Restart kubelet"
+      service:
+        name: kubelet
+        state: restarted
+      become: yes
+      notify: wait for node ready
+
+    - name: "Uncordon master node"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf uncordon {{ inventory_hostname }}
+      delegate_to: "{{ groups['k8s_masters'][0] }}"
+      changed_when: false
+
+  handlers:
+    - name: "wait for node ready"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf wait --for=condition=Ready node/{{ inventory_hostname }} --timeout=300s
+      delegate_to: "{{ groups['k8s_masters'][0] }}"
+      changed_when: false
+
+- name: "Upgrade worker nodes"
+  hosts: k8s_workers
+  serial: 1
+  gather_facts: no
+  tasks:
+    - name: "Drain worker node"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf drain {{ inventory_hostname }} \
+          --ignore-daemonsets \
+          --delete-emptydir-data \
+          --grace-period=300
+      delegate_to: "{{ groups['k8s_masters'][0] }}"
+      changed_when: false
+
+    - name: "Upgrade kubeadm on worker"
+      apt:
+        name: "kubeadm={{ target_k8s_version }}*"
+        state: present
+      when: ansible_os_family == "Debian"
+      become: yes
+
+    - name: "Upgrade kubeadm on worker (RedHat)"
+      yum:
+        name: "kubeadm-{{ target_k8s_version }}*"
+        state: present
+      when: ansible_os_family == "RedHat"
+      become: yes
+
+    - name: "Run kubeadm upgrade node"
+      shell: |
+        kubeadm upgrade node
+      become: yes
+
+    - name: "Upgrade kubelet and kubectl"
+      apt:
+        name: "{{ item }}={{ target_k8s_version }}*"
+        state: present
+      loop:
+        - kubelet
+        - kubectl
+      when: ansible_os_family == "Debian"
+      become: yes
+
+    - name: "Upgrade kubelet and kubectl (RedHat)"
+      yum:
+        name: "{{ item }}-{{ target_k8s_version }}*"
+        state: present
+      loop:
+        - kubelet
+        - kubectl
+      when: ansible_os_family == "RedHat"
+      become: yes
+
+    - name: "Restart kubelet"
+      service:
+        name: kubelet
+        state: restarted
+      become: yes
+      notify: wait for node ready
+
+    - name: "Uncordon worker node"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf uncordon {{ inventory_hostname }}
+      delegate_to: "{{ groups['k8s_masters'][0] }}"
+      changed_when: false
+
+  handlers:
+    - name: "wait for node ready"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf wait --for=condition=Ready node/{{ inventory_hostname }} --timeout=300s
+      delegate_to: "{{ groups['k8s_masters'][0] }}"
+      changed_when: false
+
+- name: "Post-upgrade verification"
+  hosts: k8s_masters[0]
+  gather_facts: no
+  tasks:
+    - name: "Display upgraded cluster version"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf version --short
+      register: upgraded_version
+      changed_when: false
+
+    - name: "Show upgrade result"
+      debug:
+        msg: "{{ upgraded_version.stdout }}"
+
+    - name: "Check all nodes Ready"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf get nodes
+      register: nodes_status
+      changed_when: false
+
+    - name: "Display nodes status"
+      debug:
+        msg: "{{ nodes_status.stdout }}"

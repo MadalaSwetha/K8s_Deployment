@@ -1,0 +1,66 @@
+---
+# Playbook to backup etcd database
+# Execute with: ansible-playbook playbooks/backup_etcd.yml -i inventory/production/hosts.ini
+
+- name: "Backup etcd database"
+  hosts: k8s_masters[0]
+  gather_facts: no
+  tasks:
+    - name: "Create backup directory"
+      file:
+        path: /var/backups/etcd
+        state: directory
+        mode: "0755"
+      become: yes
+
+    - name: "Check etcd version"
+      shell: |
+        which etcdctl || echo "etcdctl not found"
+      changed_when: false
+      register: etcdctl_path
+
+    - name: "Backup etcd using etcdctl (if available)"
+      shell: |
+        ETCDCTL_API=3 /usr/local/bin/etcdctl \
+          --cert=/etc/kubernetes/pki/etcd/server.crt \
+          --key=/etc/kubernetes/pki/etcd/server.key \
+          --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+          --endpoints=127.0.0.1:2379 \
+          snapshot save /var/backups/etcd/etcd-backup-$(date +%Y%m%d-%H%M%S).db
+      when: etcdctl_path.stdout != ""
+      become: yes
+      changed_when: false
+      register: etcd_backup_result
+
+    - name: "Backup etcd using kubectl (fallback)"
+      shell: |
+        kubectl create namespace etcd-backup || true
+        kubectl run etcd-backup \
+          --image=bitnami/etcd:latest \
+          --command -- etcdctl \
+          --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+          --cert=/etc/kubernetes/pki/etcd/server.crt \
+          --key=/etc/kubernetes/pki/etcd/server.key \
+          --endpoints=https://127.0.0.1:2379 \
+          snapshot save /var/backups/etcd/etcd-backup-$(date +%Y%m%d-%H%M%S).db
+      when: etcdctl_path.stdout == ""
+      become: yes
+      changed_when: false
+      register: etcd_backup_kubectl
+      failed_when: false
+
+    - name: "Verify backup files"
+      shell: |
+        ls -lh /var/backups/etcd/
+      register: backup_verification
+      changed_when: false
+
+    - name: "Display backup summary"
+      debug:
+        msg: "{{ backup_verification.stdout }}"
+
+    - name: "Store backup location"
+      copy:
+        content: "/var/backups/etcd/"
+        dest: /var/backups/etcd/BACKUP_LOCATION.txt
+      become: yes

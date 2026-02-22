@@ -1,0 +1,117 @@
+---
+# Playbook for post-deployment verification
+# Execute with: ansible-playbook playbooks/verify_deployment.yml -i inventory/production/hosts.ini
+
+- name: "Verify Kubernetes cluster deployment"
+  hosts: k8s_masters[0]
+  gather_facts: no
+  tasks:
+    - name: "Get cluster info"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf cluster-info
+      register: cluster_info
+      changed_when: false
+
+    - name: "Display cluster info"
+      debug:
+        msg: "{{ cluster_info.stdout }}"
+
+    - name: "Get node status"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf get nodes -o wide
+      register: nodes_status
+      changed_when: false
+
+    - name: "Display node status"
+      debug:
+        msg: "{{ nodes_status.stdout }}"
+
+    - name: "Check all nodes are Ready"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf get nodes -o jsonpath='{.items[*].status.conditions[?(@.type=="Ready")].status}' | grep -q "True"
+      changed_when: false
+      failed_when: false
+      register: nodes_ready
+
+    - name: "Get pod status (all namespaces)"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf get pods -A
+      register: pods_status
+      changed_when: false
+
+    - name: "Display pod status"
+      debug:
+        msg: "{{ pods_status.stdout }}"
+
+    - name: "Verify CNI plugin"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf get pods -n kube-system -l k8s-app=calico-node || kubectl --kubeconfig=/etc/kubernetes/admin.conf get pods -n kube-flannel
+      register: cni_status
+      changed_when: false
+      failed_when: false
+
+    - name: "Display CNI status"
+      debug:
+        msg: "{{ cni_status.stdout }}"
+
+    - name: "Verify Ingress Controller"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf get pods -n ingress-nginx
+      register: ingress_status
+      changed_when: false
+      failed_when: false
+
+    - name: "Display Ingress status"
+      debug:
+        msg: "{{ ingress_status.stdout }}"
+
+    - name: "Verify Metrics Server"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf get deployment -n kube-system metrics-server
+      register: metrics_status
+      changed_when: false
+      failed_when: false
+
+    - name: "Display Metrics Server status"
+      debug:
+        msg: "{{ metrics_status.stdout }}"
+
+    - name: "Get cluster version"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf version --short
+      register: k8s_version
+      changed_when: false
+
+    - name: "Display Kubernetes version"
+      debug:
+        msg: "{{ k8s_version.stdout }}"
+
+    - name: "Test DNS resolution"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf run dns-test --image=busybox --rm -i --restart=Never -- nslookup kubernetes.default || true
+      changed_when: false
+      failed_when: false
+
+- name: "System-level verification"
+  hosts: k8s_all
+  gather_facts: no
+  tasks:
+    - name: "Verify kubelet service is running"
+      service:
+        name: kubelet
+        state: started
+      register: kubelet_status
+      changed_when: false
+
+    - name: "Check Docker/containerd is running"
+      service:
+        name: "{{ 'docker' if container_runtime == 'docker' else 'containerd' }}"
+        state: started
+      register: container_runtime_status
+      changed_when: false
+
+    - name: "Verify network connectivity"
+      shell: |
+        ping -c 1 8.8.8.8 || ping -c 1 1.1.1.1
+      changed_when: false
+      failed_when: false

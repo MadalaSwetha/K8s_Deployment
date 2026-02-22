@@ -1,0 +1,11 @@
+---
+# Host-specific variables for master-1
+
+ansible_host: "172.31.93.87"
+ansible_user: "root"
+
+# Node-specific labels
+node_labels: "node-role.kubernetes.io/master=,node-role.kubernetes.io/control-plane=,node-role.kubernetes.io/worker="
+
+# Node taints - REMOVED for single-node testing (allows pods to schedule on master)
+node_taints: []

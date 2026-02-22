@@ -1,0 +1,42 @@
+---
+- name: Check if node is already joined
+  stat:
+    path: /var/lib/kubelet/kubeadm-flags.env
+  register: kubelet_flags_stat
+
+- name: Get kubeadm join command from master
+  slurp:
+    src: /tmp/kubeadm-join-command.txt
+  register: join_command_file
+  delegate_to: "{{ groups['k8s_masters'][0] }}"
+  become: no
+
+- name: Execute kubeadm join
+  shell: "{{ join_command_file.content | b64decode | trim }}"
+  when: not kubelet_flags_stat.stat.exists
+  register: kubeadm_join_result
+
+- name: Look up node labels for this host
+  set_fact:
+    node_labels_list: "{{ hostvars[inventory_hostname].get('node_labels', 'node-role.kubernetes.io/worker=') }}"
+
+- name: Label the worker node
+  block:
+    - name: Wait for kubelet to be ready
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/kubelet.conf get nodes {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+      register: node_ready
+      retries: 30
+      delay: 10
+      until: node_ready.stdout == "True"
+      changed_when: false
+      failed_when: false
+      delegate_to: "{{ groups['k8s_masters'][0] }}"
+
+    - name: Apply node labels
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf label nodes {{ inventory_hostname }} {{ node_labels_list }} --overwrite
+      delegate_to: "{{ groups['k8s_masters'][0] }}"
+      run_once: yes
+      changed_when: false
+  when: node_labels_list is defined and node_labels_list != ""

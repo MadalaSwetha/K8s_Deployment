@@ -1,0 +1,22 @@
+---
+# Playbook to deploy or switch CNI plugins
+# Execute with: ansible-playbook playbooks/deploy_cni.yml -i inventory/production/hosts.ini --extra-vars "cni_plugin=flannel"
+
+- name: "Deploy selected CNI plugin"
+  hosts: k8s_masters[0]
+  gather_facts: no
+  tasks:
+    - name: "Deploy Calico"
+      include_role:
+        name: cni_calico
+      when: cni_plugin == "calico"
+
+    - name: "Deploy Flannel"
+      include_role:
+        name: cni_flannel
+      when: cni_plugin == "flannel"
+
+    - name: "Verify CNI plugin deployment"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf get pods -n kube-system
+      changed_when: false

@@ -1,0 +1,33 @@
+---
+# Staging k8s_masters group_vars
+
+cluster_name: "staging-k8s"
+control_plane_endpoint: "k8s-master.staging.internal:6443"
+
+etcd_quota_bytes: 1073741824 # 1GB for staging (smaller than prod)
+etcd_data_dir: "/var/lib/etcd"
+
+api_server_advertise_address: "{{ ansible_default_ipv4.address }}"
+apiserver_count: 1
+
+apiserver_extra_args: "--audit-policy-file=/etc/kubernetes/audit/audit-policy.yaml --audit-log-path=/var/log/kubernetes/audit/audit.log"
+
+api_server_cert_extra_sans:
+  - "k8s-master.staging.internal"
+  - "k8s-api.staging.example.com"
+  - "{{ ansible_default_ipv4.address }}"
+
+controller_manager_extra_args: "--cluster-signing-duration=876000h"
+
+kubelet_extra_args: "--max-pods=110"
+
+node_labels: "node-role.kubernetes.io/master=,node-role.kubernetes.io/control-plane="
+
+node_taints:
+  - "node-role.kubernetes.io/master=:NoSchedule"
+  - "node-role.kubernetes.io/control-plane=:NoSchedule"
+
+token_ttl: "24h"
+
+pod_security_policy_enabled: false
+rbac_enabled: true

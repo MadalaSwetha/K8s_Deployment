@@ -1,0 +1,20 @@
+---
+# Worker Node specific variables
+
+# Kubelet Configuration for Workers
+kubelet_max_pods: 110
+kubelet_extra_args: "--max-pods=110"
+
+# Worker Node Labels
+node_labels: "node-role.kubernetes.io/worker="
+
+# Worker Node Taints (usually empty for workers)
+node_taints: []
+
+# Kubelet System Reserved
+kubelet_system_reserved_memory: "128Mi"
+kubelet_system_reserved_cpu: "100m"
+
+# Node Ready Conditions
+node_status_update_frequency: "10s"
+node_lease_duration_seconds: 40

@@ -1,0 +1,15 @@
+---
+# Staging k8s_workers group_vars
+
+kubelet_max_pods: 110
+kubelet_extra_args: "--max-pods=110"
+
+node_labels: "node-role.kubernetes.io/worker="
+
+node_taints: []
+
+kubelet_system_reserved_memory: "128Mi"
+kubelet_system_reserved_cpu: "100m"
+
+node_status_update_frequency: "10s"
+node_lease_duration_seconds: 40

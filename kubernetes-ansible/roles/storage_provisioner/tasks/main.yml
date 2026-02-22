@@ -1,0 +1,22 @@
+---
+- name: Create storage provisioner namespace
+  shell: |
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf create namespace kube-storage --dry-run=client -o yaml | kubectl --kubeconfig=/etc/kubernetes/admin.conf apply -f -
+  changed_when: false
+
+- name: Generate Storage Class manifest
+  template:
+    src: storage-class.yaml.j2
+    dest: /tmp/storage-class.yaml
+    mode: "0644"
+
+- name: Apply Storage Class manifest
+  shell: |
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf apply -f /tmp/storage-class.yaml
+  changed_when: false
+
+- name: Verify storage class created
+  shell: |
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf get storageclass {{ storage_class_name }}
+  changed_when: false
+  failed_when: false

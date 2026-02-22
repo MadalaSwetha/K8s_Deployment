@@ -1,0 +1,4 @@
+---
+flannel_version: "v0.24"
+flannel_backend: "vxlan"
+flannel_mtu: 1450

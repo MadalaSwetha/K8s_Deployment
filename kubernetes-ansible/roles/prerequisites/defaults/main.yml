@@ -1,0 +1,8 @@
+---
+enable_swap: false
+net_bridge_enabled: true
+ip_forward_enabled: true
+ip_nonlocal_bind_enabled: true
+enable_firewall: true
+firewall_rules_enabled: true
+ntp_enabled: true

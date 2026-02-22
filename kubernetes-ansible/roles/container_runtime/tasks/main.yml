@@ -1,0 +1,92 @@
+---
+- name: Include OS-specific variables
+  include_vars:
+    file: "{{ ansible_os_family | lower }}.yml"
+
+- name: Install Docker
+  block:
+    - name: Add Docker GPG key (Debian)
+      apt_key:
+        url: https://download.docker.com/linux/{{ ansible_distribution | lower }}/gpg
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Add Docker repository (Debian)
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/{{ ansible_distribution | lower }} {{ ansible_distribution_release }} stable"
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Install Docker (Debian)
+      apt:
+        name: "docker-ce={{ docker_version }}-*"
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Add Docker repository (RedHat)
+      shell: yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+      when: ansible_os_family == "RedHat"
+
+    - name: Install Docker (RedHat)
+      yum:
+        name: "docker-ce-{{ docker_version }}"
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: Create Docker daemon config directory
+      file:
+        path: /etc/docker
+        state: directory
+        mode: "0755"
+
+    - name: Create Docker daemon config
+      template:
+        src: daemon.json.j2
+        dest: /etc/docker/daemon.json
+        mode: "0644"
+      notify: restart docker
+
+    - name: Create Docker systemd directory
+      file:
+        path: /etc/systemd/system/docker.service.d
+        state: directory
+        mode: "0755"
+
+    - name: Start Docker service
+      service:
+        name: docker
+        state: started
+        enabled: yes
+      notify: restart docker
+
+  when: container_runtime == "docker"
+
+- name: Install containerd
+  block:
+    - name: Download containerd (Debian)
+      shell: |
+        VERSION="{{ containerd_version | regex_replace('^([0-9]+\.[0-9]+).*', '\1') }}"
+        curl -fsSL https://github.com/containerd/containerd/releases/download/v${VERSION}/containerd-${VERSION}-linux-amd64.tar.gz -o /tmp/containerd.tar.gz
+      when: ansible_os_family == "Debian"
+
+    - name: Extract containerd
+      unarchive:
+        src: /tmp/containerd.tar.gz
+        dest: /usr/local
+        remote_src: yes
+
+    - name: Create containerd systemd service
+      template:
+        src: containerd.service.j2
+        dest: /etc/systemd/system/containerd.service
+      notify: restart containerd
+
+    - name: Start containerd service
+      service:
+        name: containerd
+        state: started
+        enabled: yes
+        daemon_reload: yes
+
+  when: container_runtime == "containerd"

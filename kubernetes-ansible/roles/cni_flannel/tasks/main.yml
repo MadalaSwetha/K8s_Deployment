@@ -1,0 +1,24 @@
+---
+- name: Download Flannel manifest
+  get_url:
+    url: "https://raw.githubusercontent.com/coreos/flannel/{{ flannel_version }}/Documentation/kube-flannel.yml"
+    dest: /tmp/kube-flannel.yml
+    mode: "0644"
+  register: flannel_download
+  retries: 3
+  delay: 5
+
+- name: Apply Flannel manifest
+  shell: |
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf apply -f /tmp/kube-flannel.yml
+  when: flannel_download is changed
+  changed_when: false
+
+- name: Wait for Flannel pods to be ready
+  shell: |
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf get pods -n kube-flannel-cfg -l app=flannel --no-headers | wc -l
+  register: flannel_pods_ready
+  retries: 30
+  delay: 10
+  until: flannel_pods_ready.stdout | int >= 1
+  changed_when: false

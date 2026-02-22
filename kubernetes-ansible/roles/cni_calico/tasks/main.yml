@@ -1,0 +1,40 @@
+---
+- name: Create Calico namespace
+  shell: |
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf create namespace kube-system --dry-run=client -o yaml | kubectl --kubeconfig=/etc/kubernetes/admin.conf apply -f -
+  changed_when: false
+
+- name: Download Calico manifest
+  get_url:
+    url: "https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/tigera-operator.yaml"
+    dest: /tmp/calico-tigera-operator.yaml
+    mode: "0644"
+  register: calico_tigera_download
+  retries: 3
+  delay: 5
+
+- name: Apply Calico Tigera Operator
+  shell: |
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf apply -f /tmp/calico-tigera-operator.yaml
+  when: calico_tigera_download is changed
+  changed_when: false
+
+- name: Generate Calico Installation manifest
+  template:
+    src: calico-manifest.yaml.j2
+    dest: /tmp/calico-installation.yaml
+    mode: "0644"
+
+- name: Apply Calico Installation
+  shell: |
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf apply -f /tmp/calico-installation.yaml
+  changed_when: false
+
+- name: Wait for Calico components to be ready
+  shell: |
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf get pods -n kube-system -l k8s-app=calico-node --no-headers | wc -l
+  register: calico_pods_ready
+  retries: 30
+  delay: 10
+  until: calico_pods_ready.stdout | int >= 1
+  changed_when: false

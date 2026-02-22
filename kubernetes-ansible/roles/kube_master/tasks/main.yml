@@ -1,0 +1,66 @@
+---
+- name: Check if kubeadm init has been run
+  stat:
+    path: /var/lib/kubelet/kubeadm-flags.env
+  register: kubeadm_init_stat
+
+- name: Generate kubeadm configuration
+  template:
+    src: kubeadm-init.yaml.j2
+    dest: /tmp/kubeadm-init.yaml
+  when: not kubeadm_init_stat.stat.exists
+
+- name: Initialize Kubernetes control plane
+  shell: kubeadm init --config=/tmp/kubeadm-init.yaml
+  when: not kubeadm_init_stat.stat.exists
+  register: kubeadm_init_result
+
+- name: Create kubernetes admin kubeconfig directory
+  file:
+    path: /root/.kube
+    state: directory
+    mode: "0755"
+
+- name: Setup admin kubeconfig
+  shell: |
+    mkdir -p /root/.kube
+    cp /etc/kubernetes/admin.conf /root/.kube/config
+    chmod 600 /root/.kube/config
+  when: not kubeadm_init_stat.stat.exists
+
+- name: Retrieve kubeadm join command
+  shell: |
+    kubeadm token create --print-join-command
+  register: kubeadm_join_command
+  changed_when: false
+
+- name: Store kubeadm join command
+  set_fact:
+    join_command: "{{ kubeadm_join_command.stdout }}"
+  run_once: yes
+  delegate_to: localhost
+  changed_when: false
+
+- name: Copy kubeadm join command to temp location
+  copy:
+    content: "{{ kubeadm_join_command.stdout }}"
+    dest: /tmp/kubeadm-join-command.txt
+    mode: "0644"
+
+- name: Ensure audit policy directory exists
+  file:
+    path: /etc/kubernetes/audit
+    state: directory
+    mode: "0755"
+
+- name: Create audit policy
+  copy:
+    src: audit-policy.yaml
+    dest: /etc/kubernetes/audit/audit-policy.yaml
+    mode: "0644"
+
+- name: Wait for control plane to be ready
+  shell: |
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf wait --for=condition=Ready node/{{ inventory_hostname }} --timeout=300s
+  changed_when: false
+  failed_when: false

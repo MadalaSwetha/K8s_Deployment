@@ -1,0 +1,7 @@
+---
+nginx_ingress_version: "4.9"
+nginx_ingress_image: "registry.k8s.io/ingress-nginx/controller"
+ingress_class_name: "nginx"
+service_type: "LoadBalancer"
+replica_count: 2
+nginx_ingress_controller_replicas: 2

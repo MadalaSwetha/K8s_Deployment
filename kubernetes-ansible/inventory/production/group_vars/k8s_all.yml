@@ -1,0 +1,25 @@
+---
+# Group vars for k8s_all nodes (both masters and workers)
+
+# Kubelet Bootstrap Token Authenticator
+kubelet_authentication_webhook: true
+
+# Kubelet Authorization
+kubelet_authorization_mode: "Webhook"
+
+# Kubelet Read-only Port
+kubelet_read_only_port: "10255"
+
+# Kubelet Event Recording
+kubelet_event_record_qps: 5
+
+# Container runtime socket for Kubelet
+{% if container_runtime == 'docker' %}
+container_runtime_endpoint: "unix:///var/run/docker.sock"
+{% elif container_runtime == 'containerd' %}
+container_runtime_endpoint: "unix:///run/containerd/containerd.sock"
+{% endif %}
+
+# DNS Configuration
+kubernetes_dns_domain: "cluster.local"
+resolv_conf_path: "/etc/resolv.conf"

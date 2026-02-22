@@ -1,0 +1,32 @@
+---
+# Playbook to add new worker nodes to an existing cluster
+# Execute with: ansible-playbook playbooks/add_worker.yml -i inventory/production/hosts.ini
+
+- name: "Setup new worker nodes"
+  hosts: k8s_workers_new
+  gather_facts: yes
+  roles:
+    - prerequisites
+    - container_runtime
+    - kubernetes_repo
+    - kubeadm_prepare
+
+- name: "Join new worker nodes to cluster"
+  hosts: k8s_workers_new
+  gather_facts: no
+  roles:
+    - kube_worker
+
+- name: "Verify new worker nodes joined"
+  hosts: k8s_masters[0]
+  gather_facts: no
+  tasks:
+    - name: "Wait for new nodes to be ready"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf wait --for=condition=Ready nodes --all --timeout=300s
+      changed_when: false
+
+    - name: "Display updated node list"
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf get nodes -o wide
+      changed_when: false

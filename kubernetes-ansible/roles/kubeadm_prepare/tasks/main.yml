@@ -1,0 +1,49 @@
+---
+- name: Install kubeadm kubelet kubectl (Debian)
+  apt:
+    name: "{{ item }}={{ kubernetes_version }}*"
+    state: present
+    allow_unauthenticated: yes
+  loop:
+    - kubeadm
+    - kubelet
+    - kubectl
+  when: ansible_os_family == "Debian"
+
+- name: Install kubeadm kubelet kubectl (RedHat)
+  yum:
+    name: "{{ item }}-{{ kubernetes_version }}*"
+    state: present
+  loop:
+    - kubeadm
+    - kubelet
+    - kubectl
+  when: ansible_os_family == "RedHat"
+
+- name: Hold Kubernetes packages (Debian)
+  dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubeadm
+    - kubelet
+    - kubectl
+  when: ansible_os_family == "Debian"
+
+- name: Create kubelet config directory
+  file:
+    path: /etc/systemd/system/kubelet.service.d
+    state: directory
+    mode: "0755"
+
+- name: Create kubelet systemd drop-in
+  template:
+    src: 10-kubeadm.conf.j2
+    dest: /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+  notify: restart kubelet
+
+- name: Enable kubelet service
+  service:
+    name: kubelet
+    enabled: yes
+    daemon_reload: yes
