@@ -22,7 +22,7 @@
   yum_repository:
     name: kubernetes
     description: "Kubernetes"
-    baseurl: "https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version | regex_replace('^([0-9]+\.[0-9]+).*', '\1') }}/rpm/"
+    baseurl: "https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version | regex_replace('^([0-9]+\\.[0-9]+).*', '\\1') }}/rpm/"
     gpgcheck: yes
-    gpgkey: https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version | regex_replace('^([0-9]+\.[0-9]+).*', '\1') }}/rpm/repodata/repomd.xml.key
+    gpgkey: https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version | regex_replace('^([0-9]+\\.[0-9]+).*', '\\1') }}/rpm/repodata/repomd.xml.key
   when: ansible_os_family == "RedHat"
