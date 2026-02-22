@@ -1,13 +1,13 @@
 ---
 - name: Add Kubernetes repository key (Debian)
   apt_key:
-    url: https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version | regex_replace('^([0-9]+\.[0-9]+).*', '\1') }}/deb/Release.key
+    url: https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version | regex_replace('^([0-9]+\\.[0-9]+).*', '\\1') }}/deb/Release.key
     state: present
   when: ansible_os_family == "Debian"
 
 - name: Add Kubernetes repository (Debian)
   apt_repository:
-    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version | regex_replace('^([0-9]+\.[0-9]+).*', '\1') }}/deb/ /"
+    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version | regex_replace('^([0-9]+\\.[0-9]+).*', '\\1') }}/deb/ /"
     state: present
     filename: kubernetes
   when: ansible_os_family == "Debian"
